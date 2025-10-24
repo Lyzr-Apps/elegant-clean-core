@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Mail, MessageCircle, BookOpen, Github, Users, Briefcase, Twitter, MessageSquare, CheckCircle, AlertCircle, Clock, FileText, Database, Phone } from 'lucide-react'
+import { Mail, MessageCircle, BookOpen, Github, Users, Briefcase, Twitter, MessageSquare, CheckCircle, AlertCircle, Clock, FileText, Database, Phone, TrendingUp, Zap } from 'lucide-react'
 import { callAIAgent } from '@/utils/aiAgent'
 import parseLLMJson from '@/utils/jsonParser'
 
@@ -44,6 +44,25 @@ interface SummaryResponse {
   retry_available: boolean
 }
 
+interface SentimentAnalysisResponse {
+  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed'
+  score: number
+  confidence: number
+  emotions: {
+    anger?: number
+    joy?: number
+    sadness?: number
+    surprise?: number
+    fear?: number
+    trust?: number
+    anticipation?: number
+    disgust?: number
+  }
+  analysis: string
+  recommendations?: string[]
+  overall_tone: string
+}
+
 // Sub-component: Integration Panel
 function IntegrationPanel({ integrations, onToggle }: { integrations: Integration[]; onToggle: (id: string) => void }) {
   return (
@@ -71,6 +90,162 @@ function IntegrationPanel({ integrations, onToggle }: { integrations: Integratio
         ))}
       </CardContent>
     </Card>
+  )
+}
+
+// Sub-component: Sentiment Gauge
+function SentimentGauge({ score, sentiment }: { score: number; sentiment: string }) {
+  const getColor = (s: string) => {
+    switch (s.toLowerCase()) {
+      case 'positive':
+        return 'text-green-600'
+      case 'negative':
+        return 'text-red-600'
+      case 'neutral':
+        return 'text-slate-600'
+      case 'mixed':
+        return 'text-orange-600'
+      default:
+        return 'text-slate-600'
+    }
+  }
+
+  const getBgColor = (s: string) => {
+    switch (s.toLowerCase()) {
+      case 'positive':
+        return 'bg-green-100'
+      case 'negative':
+        return 'bg-red-100'
+      case 'neutral':
+        return 'bg-slate-100'
+      case 'mixed':
+        return 'bg-orange-100'
+      default:
+        return 'bg-slate-100'
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className={`w-32 h-32 rounded-full ${getBgColor(sentiment)} flex items-center justify-center`}>
+        <div className="text-center">
+          <div className={`text-4xl font-bold ${getColor(sentiment)}`}>{(score * 100).toFixed(0)}%</div>
+          <div className="text-xs text-slate-600 capitalize mt-1">{sentiment}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Sub-component: Emotion Breakdown
+function EmotionBreakdown({
+  emotions,
+}: {
+  emotions: {
+    anger?: number
+    joy?: number
+    sadness?: number
+    surprise?: number
+    fear?: number
+    trust?: number
+    anticipation?: number
+    disgust?: number
+  }
+}) {
+  const emotionList = Object.entries(emotions)
+    .filter(([_, value]) => value !== undefined && value > 0)
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0))
+    .slice(0, 5)
+
+  return (
+    <div className="space-y-2">
+      {emotionList.map(([emotion, value]) => (
+        <div key={emotion} className="flex items-center gap-2">
+          <span className="capitalize text-sm font-medium min-w-20">{emotion}</span>
+          <div className="flex-1 bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-blue-500 h-full rounded-full transition-all"
+              style={{ width: `${(value ?? 0) * 100}%` }}
+            />
+          </div>
+          <span className="text-xs text-slate-600 min-w-12 text-right">{((value ?? 0) * 100).toFixed(0)}%</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Sub-component: Sentiment Analysis Modal
+function SentimentAnalysisModal({
+  isOpen,
+  analysisData,
+  onClose,
+}: {
+  isOpen: boolean
+  analysisData: SentimentAnalysisResponse | null
+  onClose: () => void
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Sentiment Analysis & Chat Scoring</DialogTitle>
+          <DialogDescription>Detailed sentiment breakdown and emotional analysis</DialogDescription>
+        </DialogHeader>
+
+        {analysisData && (
+          <div className="space-y-6">
+            {/* Main Sentiment Score */}
+            <div className="flex justify-center">
+              <SentimentGauge score={analysisData.score} sentiment={analysisData.sentiment} />
+            </div>
+
+            {/* Confidence and Tone */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <span className="text-sm font-medium">Confidence Score</span>
+                <div className="text-2xl font-bold text-blue-600 mt-2">{(analysisData.confidence * 100).toFixed(1)}%</div>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <span className="text-sm font-medium">Overall Tone</span>
+                <div className="text-2xl font-bold text-purple-600 mt-2 capitalize">{analysisData.overall_tone}</div>
+              </div>
+            </div>
+
+            {/* Emotional Breakdown */}
+            <div>
+              <h3 className="font-semibold text-sm mb-4">Emotional Breakdown</h3>
+              <EmotionBreakdown emotions={analysisData.emotions} />
+            </div>
+
+            {/* Analysis Text */}
+            <div className="bg-slate-50 p-4 rounded-lg">
+              <h3 className="font-semibold text-sm mb-2">Analysis</h3>
+              <p className="text-sm text-slate-700 leading-relaxed">{analysisData.analysis}</p>
+            </div>
+
+            {/* Recommendations */}
+            {analysisData.recommendations && analysisData.recommendations.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-sm mb-3">Recommendations</h3>
+                <ul className="space-y-2">
+                  {analysisData.recommendations.map((rec, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Button onClick={onClose} className="w-full">
+              Close
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -262,6 +437,11 @@ export default function App() {
   const [tone, setTone] = useState('professional')
   const [length, setLength] = useState('medium')
 
+  // Sentiment Analysis State
+  const [sentimentAnalysis, setSentimentAnalysis] = useState<SentimentAnalysisResponse | null>(null)
+  const [isSentimentModalOpen, setIsSentimentModalOpen] = useState(false)
+  const [sentimentAgentId, setSentimentAgentId] = useState('')
+
   const [integrations, setIntegrations] = useState<Integration[]>([
     { id: 'gmail', name: 'Gmail', icon: <Mail size={16} />, enabled: false },
     { id: 'slack', name: 'Slack', icon: <MessageCircle size={16} />, enabled: false },
@@ -383,6 +563,47 @@ export default function App() {
     }
   }
 
+  async function handleSentimentAnalysis(e: React.FormEvent) {
+    e.preventDefault()
+    if (!transcript.trim()) {
+      setError('Please paste a chat transcript')
+      return
+    }
+
+    if (!sentimentAgentId.trim()) {
+      setError('Please enter the Sentiment Analysis Agent ID')
+      return
+    }
+
+    setError('')
+    setIsLoading(true)
+
+    try {
+      const message = `Perform a comprehensive sentiment analysis and chat scoring on this conversation:\n\n${transcript}\n\nProvide response in JSON format with:\n{\n  "sentiment": "positive|negative|neutral|mixed",\n  "score": 0.0-1.0,\n  "confidence": 0.0-1.0,\n  "emotions": {\n    "anger": 0.0-1.0,\n    "joy": 0.0-1.0,\n    "sadness": 0.0-1.0,\n    "surprise": 0.0-1.0,\n    "fear": 0.0-1.0,\n    "trust": 0.0-1.0,\n    "anticipation": 0.0-1.0,\n    "disgust": 0.0-1.0\n  },\n  "analysis": "detailed analysis text",\n  "overall_tone": "professional|casual|formal|friendly|hostile",\n  "recommendations": ["recommendation1", "recommendation2"]\n}`
+
+      const response = await callAIAgent(message, sentimentAgentId)
+
+      if (!response?.response) {
+        throw new Error('Invalid response from agent')
+      }
+
+      const parsedResponse = parseLLMJson(response.response, null) as SentimentAnalysisResponse | null
+
+      if (!parsedResponse?.sentiment) {
+        throw new Error('Failed to perform sentiment analysis')
+      }
+
+      setSentimentAnalysis(parsedResponse)
+      setIsSentimentModalOpen(true)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to perform sentiment analysis'
+      setError(errorMsg)
+      console.error('Sentiment analysis error:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const selectedIntegrations = integrations.filter((int) => int.enabled)
 
   return (
@@ -462,20 +683,56 @@ export default function App() {
                 </div>
               </div>
 
-              <Button
-                type="submit"
-                disabled={isLoading || !transcript.trim()}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
-              >
-                {isLoading ? (
-                  <>
-                    <Spinner className="mr-2 h-4 w-4" />
-                    Generating Summary...
-                  </>
-                ) : (
-                  'Summarize & Send'
-                )}
-              </Button>
+              {/* Sentiment Agent ID Input */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Sentiment Analysis Agent ID (Optional)</Label>
+                <input
+                  type="text"
+                  value={sentimentAgentId}
+                  onChange={(e) => setSentimentAgentId(e.target.value)}
+                  placeholder="Enter your Sentiment Analysis Agent ID to enable scoring..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button
+                  onClick={(e) => handleSentimentAnalysis(e as unknown as React.FormEvent)}
+                  disabled={isLoading || !transcript.trim() || !sentimentAgentId.trim()}
+                  className="w-full bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white"
+                >
+                  {isLoading ? (
+                    <>
+                      <Spinner className="mr-2 h-4 w-4" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="mr-2 h-4 w-4" />
+                      Analyze & Score
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isLoading || !transcript.trim()}
+                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
+                >
+                  {isLoading ? (
+                    <>
+                      <Spinner className="mr-2 h-4 w-4" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                      Summarize & Send
+                    </>
+                  )}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
