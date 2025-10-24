@@ -13,6 +13,8 @@
  * ```
  */
 
+import React from 'react'
+
 // Direct Lyzr API configuration
 const LYZR_API_URL = 'https://agent-prod.studio.lyzr.ai/v3/inference/chat/'
 const LYZR_API_KEY = 'sk-default-obhGvAo6gG9YT9tu6ChjyXLqnw7TxSGY'
@@ -178,9 +180,6 @@ export function useAIAgent() {
     response,
   }
 }
-
-// React import for the hook
-import React from 'react'
 
 /**
  * Common AI Agent Use Cases

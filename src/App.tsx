@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Mail, MessageCircle, BookOpen, Github, Users, Briefcase, Twitter, MessageSquare, CheckCircle, AlertCircle, Clock } from 'lucide-react'
+import { Mail, MessageCircle, BookOpen, Github, Users, Briefcase, Twitter, MessageSquare, CheckCircle, AlertCircle, Clock, FileText, Database, Phone } from 'lucide-react'
 import { callAIAgent } from '@/utils/aiAgent'
 import parseLLMJson from '@/utils/jsonParser'
 
@@ -33,8 +33,10 @@ interface SummaryResponse {
   summary: string
   summary_metadata: {
     word_count: number
+    character_count?: number
     key_points: string[]
     sentiment: string
+    tone?: string
     topics: string[]
   }
   distribution_results: DistributionResult[]
@@ -50,7 +52,7 @@ function IntegrationPanel({ integrations, onToggle }: { integrations: Integratio
         <CardTitle className="text-lg">Distribution Channels</CardTitle>
         <CardDescription>Select where to send the summary</CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {integrations.map((integration) => (
           <div key={integration.id} className="flex items-center space-x-2">
             <Checkbox
@@ -60,7 +62,7 @@ function IntegrationPanel({ integrations, onToggle }: { integrations: Integratio
             />
             <Label
               htmlFor={integration.id}
-              className="flex items-center gap-1 cursor-pointer text-sm"
+              className="flex items-center gap-1 cursor-pointer text-xs sm:text-sm whitespace-nowrap"
             >
               {integration.icon}
               <span className="hidden sm:inline">{integration.name}</span>
@@ -147,6 +149,16 @@ function SummaryModal({
                   <div>
                     <span className="font-medium">Sentiment:</span> {metadata.sentiment}
                   </div>
+                  {metadata.character_count !== undefined && (
+                    <div>
+                      <span className="font-medium">Characters:</span> {metadata.character_count}
+                    </div>
+                  )}
+                  {metadata.tone && (
+                    <div>
+                      <span className="font-medium">Tone:</span> {metadata.tone}
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <span className="font-medium">Topics:</span>
                     <div className="flex flex-wrap gap-2 mt-1">
@@ -247,6 +259,9 @@ export default function App() {
   const [overallStatus, setOverallStatus] = useState<string | undefined>()
   const [error, setError] = useState('')
 
+  const [tone, setTone] = useState('professional')
+  const [length, setLength] = useState('medium')
+
   const [integrations, setIntegrations] = useState<Integration[]>([
     { id: 'gmail', name: 'Gmail', icon: <Mail size={16} />, enabled: false },
     { id: 'slack', name: 'Slack', icon: <MessageCircle size={16} />, enabled: false },
@@ -256,6 +271,9 @@ export default function App() {
     { id: 'apollo', name: 'Apollo', icon: <Briefcase size={16} />, enabled: false },
     { id: 'twitter', name: 'Twitter', icon: <Twitter size={16} />, enabled: false },
     { id: 'discord', name: 'Discord', icon: <MessageSquare size={16} />, enabled: false },
+    { id: 'salesforce', name: 'Salesforce', icon: <Database size={16} />, enabled: false },
+    { id: 'gdrive', name: 'Google Drive', icon: <FileText size={16} />, enabled: false },
+    { id: 'whatsapp', name: 'WhatsApp', icon: <Phone size={16} />, enabled: false },
   ])
 
   function toggleIntegration(id: string) {
@@ -277,7 +295,13 @@ export default function App() {
     setIsLoading(true)
 
     try {
-      const message = `Summarize the following conversation transcript and provide metadata:\n\n${transcript}\n\nProvide response in JSON format with: summary (2-3 sentences), summary_metadata (word_count, key_points array with 3-5 items, sentiment, topics array with 3-5 items), distribution_results (empty array), overall_status, and retry_available.`
+      const lengthGuide = {
+        short: '1-2 sentences, max 100 words',
+        medium: '2-3 sentences, max 200 words',
+        long: '3-5 sentences, max 400 words',
+      }
+
+      const message = `Summarize the following conversation transcript with tone: ${tone} and length: ${lengthGuide[length as keyof typeof lengthGuide]}:\n\n${transcript}\n\nProvide response in JSON format with: summary, summary_metadata (word_count, character_count, key_points array with 3-5 items, sentiment, tone, topics array with 3-5 items), distribution_results (empty array), overall_status, and retry_available.`
 
       const response = await callAIAgent(message, '68fb49d771c6b27d6c8eb04a')
 
@@ -316,11 +340,10 @@ export default function App() {
     setIsLoading(true)
 
     try {
-      const message = `Send this summary to the following integrations: ${selectedIntegrations
-        .map((int) => int.name)
-        .join(', ')}.\n\nSummary:\n${summary}\n\nRespond with JSON containing distribution_results array where each item has integration name, status ("success", "failed", or "skipped"), and optional message. Also include overall_status as "success", "partial", or "failed".`
+      const channelList = selectedIntegrations.map((int) => int.name).join(', ')
+      const message = `Distribute this summary to ${channelList}:\n\n${summary}\n\nFormat for each channel (email body, Slack markdown, Notion page, GitHub issue, HubSpot note, Apollo enrichment, tweet, Discord message, Salesforce record, Drive document, WhatsApp message) and respond with JSON containing distribution_results array. Each result should have: integration name, status ("success", "failed", or "skipped"), and optional message. Also include overall_status as "success", "partial", or "failed".`
 
-      const response = await callAIAgent(message, '68fb49d771c6b27d6c8eb04a')
+      const response = await callAIAgent(message, '68fb4abd4f148178b1db4a91')
 
       if (!response?.response) {
         throw new Error('Invalid response from agent')
@@ -405,6 +428,40 @@ export default function App() {
                 className="min-h-40 resize-none focus:ring-2 focus:ring-blue-500"
                 disabled={isLoading}
               />
+
+              {/* Tone and Length Controls */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Tone</Label>
+                  <select
+                    value={tone}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTone(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual</option>
+                    <option value="formal">Formal</option>
+                    <option value="creative">Creative</option>
+                    <option value="analytical">Analytical</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Length</Label>
+                  <select
+                    value={length}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLength(e.target.value)}
+                    disabled={isLoading}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="short">Short (1-2 sentences)</option>
+                    <option value="medium">Medium (2-3 sentences)</option>
+                    <option value="long">Long (3-5 sentences)</option>
+                  </select>
+                </div>
+              </div>
+
               <Button
                 type="submit"
                 disabled={isLoading || !transcript.trim()}
