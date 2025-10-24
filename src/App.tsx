@@ -9,11 +9,11 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Mail, MessageCircle, BookOpen, Github, Users, Briefcase, Twitter, MessageSquare, CheckCircle, AlertCircle, Clock, FileText, Database, Phone, TrendingUp, Zap } from 'lucide-react'
+import { Mail, MessageCircle, BookOpen, Github, Users, Briefcase, Twitter, MessageSquare, CheckCircle, AlertCircle, Clock, FileText, Database, Phone, TrendingUp, Zap, BarChart3 } from 'lucide-react'
 import { callAIAgent } from '@/utils/aiAgent'
 import parseLLMJson from '@/utils/jsonParser'
 
-// Types
+// Type Definitions
 interface Integration {
   id: string
   name: string
@@ -23,44 +23,76 @@ interface Integration {
 }
 
 interface DistributionResult {
-  integration: string
   status: 'success' | 'failed' | 'skipped'
   message?: string
-  url?: string
 }
 
 interface SummaryResponse {
   summary: string
   summary_metadata: {
-    word_count: number
     character_count?: number
+    word_count?: number
+    tone_used?: string
     key_points: string[]
-    sentiment: string
-    tone?: string
-    topics: string[]
   }
-  distribution_results: DistributionResult[]
-  overall_status: 'success' | 'partial' | 'failed'
-  retry_available: boolean
+  distribution_results: Record<string, DistributionResult>
+  overall_status: 'success' | 'partial' | 'failed' | 'partial_success'
+  success_count?: number
+  failed_count?: number
+  pending_count?: number
+  retry_available?: string[]
+  confidence?: number
+  metadata?: {
+    processing_time?: string
+    integrations_used?: number
+    summary_generation_method?: string
+  }
 }
 
 interface SentimentAnalysisResponse {
-  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed'
-  score: number
-  confidence: number
-  emotions: {
-    anger?: number
-    joy?: number
-    sadness?: number
-    surprise?: number
-    fear?: number
-    trust?: number
-    anticipation?: number
-    disgust?: number
+  result: string
+  sentiment_analysis: {
+    overall_sentiment: string
+    sentiment_score: number
+    emotional_tone: string[]
+    sentiment_trajectory: string[]
+    key_emotions: {
+      positive: number
+      neutral: number
+      negative: number
+    }
   }
-  analysis: string
-  recommendations?: string[]
-  overall_tone: string
+  engagement_metrics: {
+    engagement_score: number
+    response_balance: number
+    topic_coherence: number
+    interaction_quality: string
+    participant_count: number
+  }
+  response_quality: {
+    response_quality_score: number
+    relevance: number
+    completeness: number
+    clarity: number
+    helpfulness: number
+  }
+  overall_scoring: {
+    conversation_quality_score: number
+    satisfaction_likelihood: number
+    recommendation_score: number
+    rating: string
+  }
+  detailed_analysis: {
+    strengths: string[]
+    improvement_areas: string[]
+    key_insights: string[]
+  }
+  confidence: number
+  metadata: {
+    processing_time: string
+    messages_analyzed: number
+    analysis_depth: string
+  }
 }
 
 // Sub-component: Integration Panel
@@ -90,162 +122,6 @@ function IntegrationPanel({ integrations, onToggle }: { integrations: Integratio
         ))}
       </CardContent>
     </Card>
-  )
-}
-
-// Sub-component: Sentiment Gauge
-function SentimentGauge({ score, sentiment }: { score: number; sentiment: string }) {
-  const getColor = (s: string) => {
-    switch (s.toLowerCase()) {
-      case 'positive':
-        return 'text-green-600'
-      case 'negative':
-        return 'text-red-600'
-      case 'neutral':
-        return 'text-slate-600'
-      case 'mixed':
-        return 'text-orange-600'
-      default:
-        return 'text-slate-600'
-    }
-  }
-
-  const getBgColor = (s: string) => {
-    switch (s.toLowerCase()) {
-      case 'positive':
-        return 'bg-green-100'
-      case 'negative':
-        return 'bg-red-100'
-      case 'neutral':
-        return 'bg-slate-100'
-      case 'mixed':
-        return 'bg-orange-100'
-      default:
-        return 'bg-slate-100'
-    }
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className={`w-32 h-32 rounded-full ${getBgColor(sentiment)} flex items-center justify-center`}>
-        <div className="text-center">
-          <div className={`text-4xl font-bold ${getColor(sentiment)}`}>{(score * 100).toFixed(0)}%</div>
-          <div className="text-xs text-slate-600 capitalize mt-1">{sentiment}</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Sub-component: Emotion Breakdown
-function EmotionBreakdown({
-  emotions,
-}: {
-  emotions: {
-    anger?: number
-    joy?: number
-    sadness?: number
-    surprise?: number
-    fear?: number
-    trust?: number
-    anticipation?: number
-    disgust?: number
-  }
-}) {
-  const emotionList = Object.entries(emotions)
-    .filter(([_, value]) => value !== undefined && value > 0)
-    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0))
-    .slice(0, 5)
-
-  return (
-    <div className="space-y-2">
-      {emotionList.map(([emotion, value]) => (
-        <div key={emotion} className="flex items-center gap-2">
-          <span className="capitalize text-sm font-medium min-w-20">{emotion}</span>
-          <div className="flex-1 bg-slate-200 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-blue-500 h-full rounded-full transition-all"
-              style={{ width: `${(value ?? 0) * 100}%` }}
-            />
-          </div>
-          <span className="text-xs text-slate-600 min-w-12 text-right">{((value ?? 0) * 100).toFixed(0)}%</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// Sub-component: Sentiment Analysis Modal
-function SentimentAnalysisModal({
-  isOpen,
-  analysisData,
-  onClose,
-}: {
-  isOpen: boolean
-  analysisData: SentimentAnalysisResponse | null
-  onClose: () => void
-}) {
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Sentiment Analysis & Chat Scoring</DialogTitle>
-          <DialogDescription>Detailed sentiment breakdown and emotional analysis</DialogDescription>
-        </DialogHeader>
-
-        {analysisData && (
-          <div className="space-y-6">
-            {/* Main Sentiment Score */}
-            <div className="flex justify-center">
-              <SentimentGauge score={analysisData.score} sentiment={analysisData.sentiment} />
-            </div>
-
-            {/* Confidence and Tone */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <span className="text-sm font-medium">Confidence Score</span>
-                <div className="text-2xl font-bold text-blue-600 mt-2">{(analysisData.confidence * 100).toFixed(1)}%</div>
-              </div>
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <span className="text-sm font-medium">Overall Tone</span>
-                <div className="text-2xl font-bold text-purple-600 mt-2 capitalize">{analysisData.overall_tone}</div>
-              </div>
-            </div>
-
-            {/* Emotional Breakdown */}
-            <div>
-              <h3 className="font-semibold text-sm mb-4">Emotional Breakdown</h3>
-              <EmotionBreakdown emotions={analysisData.emotions} />
-            </div>
-
-            {/* Analysis Text */}
-            <div className="bg-slate-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-sm mb-2">Analysis</h3>
-              <p className="text-sm text-slate-700 leading-relaxed">{analysisData.analysis}</p>
-            </div>
-
-            {/* Recommendations */}
-            {analysisData.recommendations && analysisData.recommendations.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-sm mb-3">Recommendations</h3>
-                <ul className="space-y-2">
-                  {analysisData.recommendations.map((rec, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm">
-                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                      <span>{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <Button onClick={onClose} className="w-full">
-              Close
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -289,7 +165,7 @@ function SummaryModal({
   onSend: () => void
   selectedIntegrations: Integration[]
   isLoading: boolean
-  distributionResults?: DistributionResult[]
+  distributionResults?: Record<string, DistributionResult>
   overallStatus?: string
 }) {
   const [editedSummary, setEditedSummary] = useState(summary)
@@ -302,7 +178,6 @@ function SummaryModal({
           <DialogDescription>Edit if needed and confirm distribution</DialogDescription>
         </DialogHeader>
 
-        {/* Summary Content */}
         {!distributionResults ? (
           <>
             <div className="space-y-4">
@@ -318,44 +193,34 @@ function SummaryModal({
 
               {metadata && (
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Word Count:</span> {metadata.word_count}
-                  </div>
-                  <div>
-                    <span className="font-medium">Sentiment:</span> {metadata.sentiment}
-                  </div>
                   {metadata.character_count !== undefined && (
                     <div>
                       <span className="font-medium">Characters:</span> {metadata.character_count}
                     </div>
                   )}
-                  {metadata.tone && (
+                  {metadata.word_count !== undefined && (
                     <div>
-                      <span className="font-medium">Tone:</span> {metadata.tone}
+                      <span className="font-medium">Words:</span> {metadata.word_count}
                     </div>
                   )}
-                  <div className="col-span-2">
-                    <span className="font-medium">Topics:</span>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {metadata.topics.map((topic, idx) => (
-                        <Badge key={idx} variant="secondary">
-                          {topic}
-                        </Badge>
-                      ))}
+                  {metadata.tone_used && (
+                    <div>
+                      <span className="font-medium">Tone:</span> {metadata.tone_used}
                     </div>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="font-medium">Key Points:</span>
-                    <ul className="list-disc list-inside mt-1 text-xs">
-                      {metadata.key_points.slice(0, 3).map((point, idx) => (
-                        <li key={idx}>{point}</li>
-                      ))}
-                    </ul>
-                  </div>
+                  )}
+                  {metadata.key_points && metadata.key_points.length > 0 && (
+                    <div className="col-span-2">
+                      <span className="font-medium">Key Points:</span>
+                      <ul className="list-disc list-inside mt-1 text-xs">
+                        {metadata.key_points.slice(0, 3).map((point, idx) => (
+                          <li key={idx}>{point}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Integration Selection */}
               {selectedIntegrations.length > 0 && (
                 <div>
                   <Label className="text-sm font-medium mb-3 block">Send to:</Label>
@@ -371,7 +236,6 @@ function SummaryModal({
               )}
             </div>
 
-            {/* Action Buttons */}
             <div className="flex gap-2 justify-end mt-6">
               <Button variant="outline" onClick={onClose} disabled={isLoading}>
                 Cancel
@@ -389,24 +253,22 @@ function SummaryModal({
             </div>
           </>
         ) : (
-          // Distribution Results View
           <div className="space-y-4">
-            <Alert className={overallStatus === 'success' ? 'bg-green-50' : 'bg-yellow-50'}>
+            <Alert className={overallStatus === 'success' || overallStatus === 'partial_success' ? 'bg-green-50' : 'bg-yellow-50'}>
               <CheckCircle className="h-4 w-4" />
               <AlertTitle>Distribution Complete</AlertTitle>
               <AlertDescription>
-                {overallStatus === 'success' ? 'Summary sent successfully!' : 'Some channels failed to deliver.'}
+                {overallStatus === 'success' || overallStatus === 'partial_success'
+                  ? 'Summary sent successfully!'
+                  : 'Some channels failed to deliver.'}
               </AlertDescription>
             </Alert>
 
             <ScrollArea className="h-48">
               <div className="space-y-3 pr-4">
-                {distributionResults.map((result) => (
-                  <div
-                    key={result.integration}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <span className="font-medium capitalize text-sm">{result.integration}</span>
+                {Object.entries(distributionResults || {}).map(([channel, result]) => (
+                  <div key={channel} className="flex items-center justify-between p-3 border rounded-lg">
+                    <span className="font-medium capitalize text-sm">{channel}</span>
                     <StatusChip status={result.status} message={result.message} />
                   </div>
                 ))}
@@ -423,24 +285,219 @@ function SummaryModal({
   )
 }
 
+// Sub-component: Sentiment Analysis Modal
+function SentimentAnalysisModal({
+  isOpen,
+  analysisData,
+  onClose,
+}: {
+  isOpen: boolean
+  analysisData: SentimentAnalysisResponse | null
+  onClose: () => void
+}) {
+  if (!analysisData) return null
+
+  const {
+    sentiment_analysis,
+    engagement_metrics,
+    response_quality,
+    overall_scoring,
+    detailed_analysis,
+    metadata,
+  } = analysisData
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Sentiment & Chat Scoring Analysis</DialogTitle>
+          <DialogDescription>Comprehensive conversation analysis and quality metrics</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Overall Scores */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">{(overall_scoring.conversation_quality_score * 100).toFixed(0)}%</div>
+              <div className="text-xs text-slate-600 mt-1">Quality Score</div>
+            </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{(overall_scoring.satisfaction_likelihood * 100).toFixed(0)}%</div>
+              <div className="text-xs text-slate-600 mt-1">Satisfaction</div>
+            </div>
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-purple-600">{(overall_scoring.recommendation_score * 100).toFixed(0)}%</div>
+              <div className="text-xs text-slate-600 mt-1">Recommend</div>
+            </div>
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-orange-600 capitalize">{overall_scoring.rating}</div>
+              <div className="text-xs text-slate-600 mt-1">Overall Rating</div>
+            </div>
+          </div>
+
+          {/* Sentiment Analysis */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Sentiment Analysis</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-sm text-slate-600">Overall Sentiment</span>
+                <div className="text-lg font-bold capitalize mt-1">{sentiment_analysis.overall_sentiment}</div>
+              </div>
+              <div>
+                <span className="text-sm text-slate-600">Sentiment Score</span>
+                <div className="text-lg font-bold mt-1">{(sentiment_analysis.sentiment_score * 100).toFixed(0)}%</div>
+              </div>
+              <div className="col-span-2">
+                <span className="text-sm text-slate-600">Key Emotions</span>
+                <div className="flex gap-3 mt-2">
+                  <div className="flex-1 bg-green-50 p-2 rounded text-center">
+                    <div className="text-sm font-bold text-green-600">{(sentiment_analysis.key_emotions.positive * 100).toFixed(0)}%</div>
+                    <div className="text-xs text-slate-600">Positive</div>
+                  </div>
+                  <div className="flex-1 bg-slate-50 p-2 rounded text-center">
+                    <div className="text-sm font-bold text-slate-600">{(sentiment_analysis.key_emotions.neutral * 100).toFixed(0)}%</div>
+                    <div className="text-xs text-slate-600">Neutral</div>
+                  </div>
+                  <div className="flex-1 bg-red-50 p-2 rounded text-center">
+                    <div className="text-sm font-bold text-red-600">{(sentiment_analysis.key_emotions.negative * 100).toFixed(0)}%</div>
+                    <div className="text-xs text-slate-600">Negative</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Engagement Metrics */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Engagement Metrics</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <span className="text-sm text-slate-600">Engagement Score</span>
+                <div className="text-lg font-bold mt-1">{(engagement_metrics.engagement_score * 100).toFixed(0)}%</div>
+              </div>
+              <div>
+                <span className="text-sm text-slate-600">Response Balance</span>
+                <div className="text-lg font-bold mt-1">{(engagement_metrics.response_balance * 100).toFixed(0)}%</div>
+              </div>
+              <div>
+                <span className="text-sm text-slate-600">Topic Coherence</span>
+                <div className="text-lg font-bold mt-1">{(engagement_metrics.topic_coherence * 100).toFixed(0)}%</div>
+              </div>
+              <div>
+                <span className="text-sm text-slate-600">Participants</span>
+                <div className="text-lg font-bold mt-1">{engagement_metrics.participant_count}</div>
+              </div>
+              <div className="col-span-2">
+                <span className="text-sm text-slate-600">Interaction Quality</span>
+                <div className="text-lg font-bold mt-1 capitalize">{engagement_metrics.interaction_quality}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Response Quality */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Response Quality</h3>
+            <div className="space-y-3">
+              {[
+                { label: 'Overall Quality', value: response_quality.response_quality_score },
+                { label: 'Relevance', value: response_quality.relevance },
+                { label: 'Completeness', value: response_quality.completeness },
+                { label: 'Clarity', value: response_quality.clarity },
+                { label: 'Helpfulness', value: response_quality.helpfulness },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center gap-3">
+                  <span className="text-sm font-medium min-w-24">{label}</span>
+                  <div className="flex-1 bg-slate-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-full rounded-full"
+                      style={{ width: `${(value ?? 0) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-bold min-w-12 text-right">{((value ?? 0) * 100).toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Detailed Analysis */}
+          {detailed_analysis && (
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Detailed Analysis</h3>
+              <div className="space-y-3">
+                {detailed_analysis.strengths && detailed_analysis.strengths.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-green-600 mb-2">Strengths</h4>
+                    <ul className="space-y-1">
+                      {detailed_analysis.strengths.map((item, idx) => (
+                        <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {detailed_analysis.improvement_areas && detailed_analysis.improvement_areas.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-orange-600 mb-2">Improvement Areas</h4>
+                    <ul className="space-y-1">
+                      {detailed_analysis.improvement_areas.map((item, idx) => (
+                        <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                          <AlertCircle className="h-4 w-4 text-orange-600 flex-shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {detailed_analysis.key_insights && detailed_analysis.key_insights.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-600 mb-2">Key Insights</h4>
+                    <ul className="space-y-1">
+                      {detailed_analysis.key_insights.map((item, idx) => (
+                        <li key={idx} className="text-sm text-slate-700">
+                          • {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Metadata */}
+          {metadata && (
+            <div className="border-t pt-4 text-xs text-slate-600 space-y-1">
+              <div>Processing Time: {metadata.processing_time}</div>
+              <div>Messages Analyzed: {metadata.messages_analyzed}</div>
+              <div className="capitalize">Analysis Depth: {metadata.analysis_depth}</div>
+            </div>
+          )}
+
+          <Button onClick={onClose} className="w-full">
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Main App Component
 export default function App() {
   const [transcript, setTranscript] = useState('')
   const [summary, setSummary] = useState('')
-  const [metadata, setMetadata] = useState<SummaryResponse['summary_metadata'] | undefined>()
+  const [summaryMetadata, setSummaryMetadata] = useState<SummaryResponse['summary_metadata'] | undefined>()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [distributionResults, setDistributionResults] = useState<DistributionResult[] | undefined>()
+  const [distributionResults, setDistributionResults] = useState<Record<string, DistributionResult> | undefined>()
   const [overallStatus, setOverallStatus] = useState<string | undefined>()
   const [error, setError] = useState('')
-
-  const [tone, setTone] = useState('professional')
-  const [length, setLength] = useState('medium')
 
   // Sentiment Analysis State
   const [sentimentAnalysis, setSentimentAnalysis] = useState<SentimentAnalysisResponse | null>(null)
   const [isSentimentModalOpen, setIsSentimentModalOpen] = useState(false)
-  const [sentimentAgentId, setSentimentAgentId] = useState('')
 
   const [integrations, setIntegrations] = useState<Integration[]>([
     { id: 'gmail', name: 'Gmail', icon: <Mail size={16} />, enabled: false },
@@ -452,7 +509,7 @@ export default function App() {
     { id: 'twitter', name: 'Twitter', icon: <Twitter size={16} />, enabled: false },
     { id: 'discord', name: 'Discord', icon: <MessageSquare size={16} />, enabled: false },
     { id: 'salesforce', name: 'Salesforce', icon: <Database size={16} />, enabled: false },
-    { id: 'gdrive', name: 'Google Drive', icon: <FileText size={16} />, enabled: false },
+    { id: 'google_drive', name: 'Google Drive', icon: <FileText size={16} />, enabled: false },
     { id: 'whatsapp', name: 'WhatsApp', icon: <Phone size={16} />, enabled: false },
   ])
 
@@ -475,13 +532,7 @@ export default function App() {
     setIsLoading(true)
 
     try {
-      const lengthGuide = {
-        short: '1-2 sentences, max 100 words',
-        medium: '2-3 sentences, max 200 words',
-        long: '3-5 sentences, max 400 words',
-      }
-
-      const message = `Summarize the following conversation transcript with tone: ${tone} and length: ${lengthGuide[length as keyof typeof lengthGuide]}:\n\n${transcript}\n\nProvide response in JSON format with: summary, summary_metadata (word_count, character_count, key_points array with 3-5 items, sentiment, tone, topics array with 3-5 items), distribution_results (empty array), overall_status, and retry_available.`
+      const message = `Summarize this conversation:\n\n${transcript}\n\nProvide JSON response with: summary, summary_metadata (character_count, word_count, tone_used, key_points array), distribution_results (empty object), overall_status, and retry_available array.`
 
       const response = await callAIAgent(message, '68fb49d771c6b27d6c8eb04a')
 
@@ -496,7 +547,7 @@ export default function App() {
       }
 
       setSummary(parsedResponse.summary)
-      setMetadata(parsedResponse.summary_metadata)
+      setSummaryMetadata(parsedResponse.summary_metadata)
       setDistributionResults(undefined)
       setIsModalOpen(true)
     } catch (err) {
@@ -521,7 +572,7 @@ export default function App() {
 
     try {
       const channelList = selectedIntegrations.map((int) => int.name).join(', ')
-      const message = `Distribute this summary to ${channelList}:\n\n${summary}\n\nFormat for each channel (email body, Slack markdown, Notion page, GitHub issue, HubSpot note, Apollo enrichment, tweet, Discord message, Salesforce record, Drive document, WhatsApp message) and respond with JSON containing distribution_results array. Each result should have: integration name, status ("success", "failed", or "skipped"), and optional message. Also include overall_status as "success", "partial", or "failed".`
+      const message = `Distribute this summary to: ${channelList}\n\nSummary:\n${summary}\n\nFormat for each channel and respond with JSON containing: summary, summary_metadata, distribution_results (object with channel names as keys), overall_status, success_count, failed_count, pending_count, retry_available, confidence, and metadata.`
 
       const response = await callAIAgent(message, '68fb4abd4f148178b1db4a91')
 
@@ -532,12 +583,10 @@ export default function App() {
       const parsedResponse = parseLLMJson(response.response, null) as SummaryResponse | null
 
       if (!parsedResponse?.distribution_results) {
-        // Simulate successful distribution if no specific results
-        const results: DistributionResult[] = selectedIntegrations.map((int) => ({
-          integration: int.name,
-          status: 'success',
-          message: 'Summary delivered',
-        }))
+        const results: Record<string, DistributionResult> = {}
+        selectedIntegrations.forEach((int) => {
+          results[int.id] = { status: 'success', message: 'Delivered' }
+        })
         setDistributionResults(results)
         setOverallStatus('success')
       } else {
@@ -545,12 +594,9 @@ export default function App() {
         setOverallStatus(parsedResponse.overall_status)
       }
 
-      // Update integration statuses
       setIntegrations(
         integrations.map((int) => {
-          const result = parsedResponse?.distribution_results?.find(
-            (r) => r.integration.toLowerCase() === int.name.toLowerCase()
-          )
+          const result = parsedResponse?.distribution_results?.[int.id]
           return result ? { ...int, status: result.status } : int
         })
       )
@@ -570,18 +616,13 @@ export default function App() {
       return
     }
 
-    if (!sentimentAgentId.trim()) {
-      setError('Please enter the Sentiment Analysis Agent ID')
-      return
-    }
-
     setError('')
     setIsLoading(true)
 
     try {
-      const message = `Perform a comprehensive sentiment analysis and chat scoring on this conversation:\n\n${transcript}\n\nProvide response in JSON format with:\n{\n  "sentiment": "positive|negative|neutral|mixed",\n  "score": 0.0-1.0,\n  "confidence": 0.0-1.0,\n  "emotions": {\n    "anger": 0.0-1.0,\n    "joy": 0.0-1.0,\n    "sadness": 0.0-1.0,\n    "surprise": 0.0-1.0,\n    "fear": 0.0-1.0,\n    "trust": 0.0-1.0,\n    "anticipation": 0.0-1.0,\n    "disgust": 0.0-1.0\n  },\n  "analysis": "detailed analysis text",\n  "overall_tone": "professional|casual|formal|friendly|hostile",\n  "recommendations": ["recommendation1", "recommendation2"]\n}`
+      const message = `Perform comprehensive sentiment and engagement analysis on this conversation:\n\n${transcript}\n\nProvide JSON response with: result, sentiment_analysis (overall_sentiment, sentiment_score, emotional_tone array, sentiment_trajectory array, key_emotions object), engagement_metrics, response_quality, overall_scoring, detailed_analysis, confidence, and metadata.`
 
-      const response = await callAIAgent(message, sentimentAgentId)
+      const response = await callAIAgent(message, '68fb4bcd71c6b27d6c8eb060')
 
       if (!response?.response) {
         throw new Error('Invalid response from agent')
@@ -589,7 +630,7 @@ export default function App() {
 
       const parsedResponse = parseLLMJson(response.response, null) as SentimentAnalysisResponse | null
 
-      if (!parsedResponse?.sentiment) {
+      if (!parsedResponse?.sentiment_analysis) {
         throw new Error('Failed to perform sentiment analysis')
       }
 
@@ -610,21 +651,21 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
       {/* Header */}
       <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-6">
+        <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
               <MessageCircle className="text-white" size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Conversation Summarizer</h1>
-              <p className="text-sm text-slate-500">Transform chat into actionable insights</p>
+              <h1 className="text-2xl font-bold text-slate-900">Chat Intelligence Hub</h1>
+              <p className="text-sm text-slate-500">Summarize, analyze, and distribute conversations</p>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
         {/* Error Alert */}
         {error && (
           <Alert variant="destructive">
@@ -638,7 +679,7 @@ export default function App() {
         <Card className="border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle>Paste Chat Transcript</CardTitle>
-            <CardDescription>Paste your conversation to generate a concise summary</CardDescription>
+            <CardDescription>Paste your conversation to summarize, analyze, and distribute</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSummarize} className="space-y-4">
@@ -650,57 +691,11 @@ export default function App() {
                 disabled={isLoading}
               />
 
-              {/* Tone and Length Controls */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">Tone</Label>
-                  <select
-                    value={tone}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTone(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="professional">Professional</option>
-                    <option value="casual">Casual</option>
-                    <option value="formal">Formal</option>
-                    <option value="creative">Creative</option>
-                    <option value="analytical">Analytical</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">Length</Label>
-                  <select
-                    value={length}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLength(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="short">Short (1-2 sentences)</option>
-                    <option value="medium">Medium (2-3 sentences)</option>
-                    <option value="long">Long (3-5 sentences)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Sentiment Agent ID Input */}
-              <div>
-                <Label className="text-sm font-medium mb-2 block">Sentiment Analysis Agent ID (Optional)</Label>
-                <input
-                  type="text"
-                  value={sentimentAgentId}
-                  onChange={(e) => setSentimentAgentId(e.target.value)}
-                  placeholder="Enter your Sentiment Analysis Agent ID to enable scoring..."
-                  className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={isLoading}
-                />
-              </div>
-
               {/* Action Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button
                   onClick={(e) => handleSentimentAnalysis(e as unknown as React.FormEvent)}
-                  disabled={isLoading || !transcript.trim() || !sentimentAgentId.trim()}
+                  disabled={isLoading || !transcript.trim()}
                   className="w-full bg-gradient-to-r from-orange-500 to-pink-600 hover:from-orange-600 hover:to-pink-700 text-white"
                 >
                   {isLoading ? (
@@ -710,7 +705,7 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <Zap className="mr-2 h-4 w-4" />
+                      <BarChart3 className="mr-2 h-4 w-4" />
                       Analyze & Score
                     </>
                   )}
@@ -723,7 +718,7 @@ export default function App() {
                   {isLoading ? (
                     <>
                       <Spinner className="mr-2 h-4 w-4" />
-                      Generating...
+                      Summarizing...
                     </>
                   ) : (
                     <>
@@ -764,7 +759,7 @@ export default function App() {
       <SummaryModal
         isOpen={isModalOpen}
         summary={summary}
-        metadata={metadata}
+        metadata={summaryMetadata}
         onClose={() => {
           setIsModalOpen(false)
           setDistributionResults(undefined)
@@ -775,6 +770,16 @@ export default function App() {
         isLoading={isLoading}
         distributionResults={distributionResults}
         overallStatus={overallStatus}
+      />
+
+      {/* Sentiment Analysis Modal */}
+      <SentimentAnalysisModal
+        isOpen={isSentimentModalOpen}
+        analysisData={sentimentAnalysis}
+        onClose={() => {
+          setIsSentimentModalOpen(false)
+          setSentimentAnalysis(null)
+        }}
       />
     </div>
   )
